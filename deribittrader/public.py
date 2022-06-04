@@ -1,7 +1,12 @@
 import json
 import urllib.request
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy import interpolate
+from mpl_toolkits import mplot3d
+from matplotlib.ticker import FuncFormatter
+from mpl_toolkits.mplot3d import Axes3D
 
 base_url = "https://deribit.com/api/v2/public/"
 
@@ -24,7 +29,7 @@ def get_all_active_options():
     active_options['m'] = np.log(active_options['strike']/price)
     active_options.loc[pc=='P','m'] = -active_options['m']
     active_options['t'] = (active_options['expiration_date']-pd.Timestamp.today()).dt.days
-    active_options = active_options.query('m>0 & m<.3 & t<91').sort_values('t')
+    active_options = active_options.query('m>0 & m<.3 & t<91 & t>7').sort_values('t')
     return active_options
 
 def get_tick_data(instrument_name):
@@ -44,5 +49,22 @@ def get_option_data():
     res['m'] = options['m']
     return res
 
-data = get_option_data()
-print(data)
+def plot_curve():
+    option_data = get_option_data().sort_values(['t','strike'])
+    price = get_tick_data('BTC-PERPETUAL')['last_price'][0]
+    x = option_data['strike']
+    y = option_data['t']
+    z = option_data['mark_iv']/100
+    xyz = pd.DataFrame({'x':x,'y':y,'z':z})
+    xyz = xyz.set_index('x')
+    gp = xyz['z'].groupby(xyz['y'])
+    res = {}
+    for g in gp.groups.keys():
+        res[g] = gp.get_group(g)
+    res = pd.DataFrame(res)
+    res.plot()
+    plt.savefig("curve.png")
+    return xyz
+
+xyz = plot_curve()
+print(xyz)
